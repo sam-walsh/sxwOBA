@@ -211,9 +211,10 @@ def update_player_scatter(batter_name):
 )
 def update_player_img(batter_name):
     from pybaseball import playerid_lookup
-    id = playerid_lookup(batter_name.split(' ')[-1], batter_name.split(' ')[0])['key_mlbam']
-    print(id[0], type(id[0]))
-    return'https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{:04d}/headshot/67/current'.format(id.iloc[0])
+    if batter_name.isalpha():
+        id = playerid_lookup(batter_name.split(' ')[-1], batter_name.split(' ')[0])['key_mlbam']
+        print(id[0], type(id[0]))
+        return'https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{:04d}/headshot/67/current'.format(id.iloc[0])
 
 
 @app.callback(
