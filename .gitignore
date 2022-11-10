@@ -1,5 +1,5 @@
 #ignore all .csv files
-*.csv
+\statcast_data
 venv
 *.pyc
 .DS_Store
