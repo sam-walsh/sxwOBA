@@ -125,7 +125,7 @@ PAGE_SIZE = 10
 
 
 app.layout = html.Div([
-    html.H1(children='sxwOBA: spray angle enhanced xwOBA'),
+    html.Header(children='sxwOBA: spray angle enhanced xwOBA'),
     dash_table.DataTable(
         id='datatable-interactivity',
         columns=[
@@ -165,7 +165,7 @@ app.layout = html.Div([
         ])
     ]),
 
-    html.H1(children='comparing xwoba and sxwoba'),
+    html.H2(children='Select a player:'),
     
     html.Div([
         dcc.Dropdown(
@@ -186,12 +186,11 @@ app.layout = html.Div([
         ], style={'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '3vw', 'margin-top': '3vw'}),
     ], className='row'),
 
-    html.H4(children='size and color correspond to the sxwOBA of each batted ball event'),
     html.Div([
         dcc.Graph(id='player-scatter')
     ]),
-
-    
+    html.H4(children='Size and color correspond to the sxwOBA of each batted ball event'),
+    html.Br(),
     html.H1(children='field plots'),
     html.Div(children=[
         dcc.Graph(id='swoba-graph',
