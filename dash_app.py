@@ -377,7 +377,8 @@ def update_player_img(batter_name):
     if batter_name != None:
         id = playerid_lookup(batter_name.split(' ')[-1], batter_name.split(' ')[0])['key_mlbam']
         print(id[0], type(id[0]))
-        im = html.Img(id='player-img', src='https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{:04d}/headshot/67/current'.format(id.iloc[0]))
+        url = str('https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{:04d}/headshot/67/current'.format(id.iloc[0]))
+        im = html.Img(id='player-img', src=url)
         
         return im
 
