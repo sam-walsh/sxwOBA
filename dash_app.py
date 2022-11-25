@@ -186,6 +186,7 @@ app.layout = html.Div([
         ], style={'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '3vw', 'margin-top': '3vw'}),
     ], className='row'),
 
+    html.H4(children='size and color correspond to the sxwOBA of each batted ball event'),
     html.Div([
         dcc.Graph(id='player-scatter')
     ]),
