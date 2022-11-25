@@ -191,14 +191,14 @@ app.layout = html.Div([
     ]),
     html.H4(children='Size and color correspond to the sxwOBA of each batted ball event'),
     html.Br(),
-    html.H1(children='field plots'),
-    html.Div(children=[
-        dcc.Graph(id='swoba-graph',
-        style={'display': 'inline-block'},
-        figure=field_swoba),
-        dcc.Graph(id='xwoba-graph',
-        style={'display': 'inline-block'},
-        figure=field_xwoba)]),
+#     html.H1(children='field plots'),
+#     html.Div(children=[
+#         dcc.Graph(id='swoba-graph',
+#         style={'display': 'inline-block'},
+#         figure=field_swoba),
+#         dcc.Graph(id='xwoba-graph',
+#         style={'display': 'inline-block'},
+#         figure=field_xwoba)]),
 ])
 
 
