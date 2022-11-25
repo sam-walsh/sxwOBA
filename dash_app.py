@@ -126,6 +126,7 @@ PAGE_SIZE = 10
 
 app.layout = html.Div([
     html.H1(children='sxwOBA | Spray-angle enhanced xwOBA'),
+    html.H2(children="leaderboards"),
     dash_table.DataTable(
         id='datatable-interactivity',
         columns=[
@@ -149,16 +150,23 @@ app.layout = html.Div([
 
     html.Div([
         html.Div([
+            html.H2(children="Comparing xwOBA and sxwOBA"),
+            html.H4(children="Select minimum plate appearances"),
             dcc.Slider(
                 1,
                 600,
                 step=None,
                 value=100,
-                marks=None,
+                marks={
+                    100: '100 PA',
+                    200: '200 PA',
+                    300: '300 PA',
+                    400: '400 PA',
+                    500: '500 PA'
+                },
                 tooltip={"placement": "bottom", "always_visible": True},
                 id='pa-slider'
             ),
-            html.H4(children="Select minimum plate appearances"),
             dcc.Graph(
                 id='example-graph',
                 figure=fig
