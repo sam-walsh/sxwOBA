@@ -125,7 +125,7 @@ PAGE_SIZE = 10
 
 
 app.layout = html.Div([
-    html.Header(children='sxwOBA: spray angle enhanced xwOBA'),
+    html.H1(children='sxwOBA | Spray-angle enhanced xwOBA'),
     dash_table.DataTable(
         id='datatable-interactivity',
         columns=[
@@ -158,6 +158,7 @@ app.layout = html.Div([
                 tooltip={"placement": "bottom", "always_visible": True},
                 id='pa-slider'
             ),
+            html.H4(children="Select minimum plate appearances"),
             dcc.Graph(
                 id='example-graph',
                 figure=fig
