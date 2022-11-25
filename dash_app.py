@@ -38,7 +38,8 @@ bbe = pd.read_csv("bbe.csv")
 bbe['field_x'] = bbe.field_x.mul(2)
 bbe['field_y'] = bbe.field_y.mul(2)
 df = df.drop(['Unnamed: 0'], axis=1)
-df= df[['batter_name', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'Barrels', 'diff', 'diff %', 'BB%', 'K%', 'pulled_barrels']]
+df= df[['batter_name', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'diff', 'diff %', 'BB%', 'K%', 'Barrels', 'pulled_barrels']]
+df['Pulled Barrel %'] = df['pulled_barrels'].div(df['Barrels']).mul(100).round()
 df['BB%'] = df['BB%'].mul(100)
 df['K%'] = df['K%'].mul(100)
 print(df.info)
@@ -235,8 +236,9 @@ def update_player_scatter(batter_name):
         y='field_y',
         color='sxwOBA',
         size='sxwOBA',
+        size_max=10,
         opacity=1,
-        color_continuous_scale='amp',
+        color_continuous_scale='balance',
         hover_data=['launch_speed', 'launch_angle', 'pulled_barrel'],
         width=750,
         height=700)
