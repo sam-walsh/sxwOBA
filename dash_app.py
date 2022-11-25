@@ -122,6 +122,7 @@ field_xwoba.update_layout(xaxis_range=[-20,380], yaxis_range=[-20,380])
 
 PAGE_SIZE = 10
 
+arenado_img = Image.open("player_images/571448.png")
 
 
 app.layout = html.Div([
@@ -186,7 +187,7 @@ app.layout = html.Div([
         html.Div([
             html.Img(
                 id='player-img',
-                src='https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/571448/headshot/67/current'
+                src=arenado_img       
             )],
                 style = {'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '3vw', 'margin-top': '3vw'}),
 
@@ -377,8 +378,8 @@ def update_player_img(batter_name):
     if batter_name != None:
         id = playerid_lookup(batter_name.split(' ')[-1], batter_name.split(' ')[0])['key_mlbam']
         print(id[0], type(id[0]))
-        url = str('https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{:04d}/headshot/67/current'.format(id.iloc[0]))
-        im = html.Img(id='player-img', src=url)
+        path = 'player_images/{}.png'.format(id[0])
+        im = Image.open(path)
         
         return im
 
