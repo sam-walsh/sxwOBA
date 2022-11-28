@@ -51,7 +51,7 @@ pitch_data = pd.read_csv("bbe.csv")
 pitch_data['field_x'] = pitch_data.field_x.mul(2)
 pitch_data['field_y'] = pitch_data.field_y.mul(2)
 
-fig = px.scatter(df, x="xwOBA", y="sxwOBA", color="diff", color_continuous_scale="balance", trendline="ols", hover_data=["batter_name", "PA"])
+fig = px.scatter(df, x="xwOBA", y="sxwOBA", color="diff", color_continuous_scale="balance", trendline="ols", hover_data=["batter_name", "PA"], width=1050, height=1000)
 
 field_swoba = px.density_heatmap(pitch_data,
     x='field_x',
@@ -124,6 +124,106 @@ PAGE_SIZE = 10
 
 arenado_img = Image.open("player_images/571448.png")
 
+def data_bars(df, column):
+    n_bins = 100
+    bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
+    ranges = [
+        ((df[column].max() - df[column].min()) * i) + df[column].min()
+        for i in bounds
+    ]
+    styles = []
+    for i in range(1, len(bounds)):
+        min_bound = ranges[i - 1]
+        max_bound = ranges[i]
+        max_bound_percentage = bounds[i] * 100
+        styles.append({
+            'if': {
+                'filter_query': (
+                    '{{{column}}} >= {min_bound}' +
+                    (' && {{{column}}} < {max_bound}' if (i < len(bounds) - 1) else '')
+                ).format(column=column, min_bound=min_bound, max_bound=max_bound),
+                'column_id': column
+            },
+            'background': (
+                """
+                    linear-gradient(90deg,
+                    #0074D9 0%,
+                    #0074D9 {max_bound_percentage}%,
+                    white {max_bound_percentage}%,
+                    white 100%)
+                """.format(max_bound_percentage=max_bound_percentage)
+            ),
+            'paddingBottom': 2,
+            'paddingTop': 2
+        })
+
+    return styles
+
+
+def data_bars_diverging(df, column, color_above='#3D9970', color_below='#FF4136'):
+    n_bins = 100
+    bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
+    col_max = df[column].max()
+    col_min = df[column].min()
+    ranges = [
+        ((col_max - col_min) * i) + col_min
+        for i in bounds
+    ]
+    midpoint = (col_max + col_min) / 2.
+
+    styles = []
+    for i in range(1, len(bounds)):
+        min_bound = ranges[i - 1]
+        max_bound = ranges[i]
+        min_bound_percentage = bounds[i - 1] * 100
+        max_bound_percentage = bounds[i] * 100
+
+        style = {
+            'if': {
+                'filter_query': (
+                    '{{{column}}} >= {min_bound}' +
+                    (' && {{{column}}} < {max_bound}' if (i < len(bounds) - 1) else '')
+                ).format(column=column, min_bound=min_bound, max_bound=max_bound),
+                'column_id': column
+            },
+            'paddingBottom': 2,
+            'paddingTop': 2
+        }
+        if max_bound > midpoint:
+            background = (
+                """
+                    linear-gradient(90deg,
+                    white 0%,
+                    white 50%,
+                    {color_above} 50%,
+                    {color_above} {max_bound_percentage}%,
+                    white {max_bound_percentage}%,
+                    white 100%)
+                """.format(
+                    max_bound_percentage=max_bound_percentage,
+                    color_above=color_above
+                )
+            )
+        else:
+            background = (
+                """
+                    linear-gradient(90deg,
+                    white 0%,
+                    white {min_bound_percentage}%,
+                    {color_below} {min_bound_percentage}%,
+                    {color_below} 50%,
+                    white 50%,
+                    white 100%)
+                """.format(
+                    min_bound_percentage=min_bound_percentage,
+                    color_below=color_below
+                )
+            )
+        style['background'] = background
+        styles.append(style)
+
+    return styles
+
 
 app.layout = html.Div([
     html.H1(children='sxwOBA | Spray-angle enhanced xwOBA'),
@@ -145,7 +245,19 @@ app.layout = html.Div([
         selected_rows=[],
         page_action="native",
         page_current= 0,
+        style_data_conditional=(
+            data_bars_diverging(df, 'pulled_barrels') +
+            data_bars_diverging(df, 'sxwOBA')
+        ),
+        style_cell={
+            'width': '100px',
+            'minWidth': '100px',
+            'maxWidth': '100px',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
         page_size=PAGE_SIZE,
+        
     ),
     html.Div(id='datatable-interactivity-container'),
 
@@ -250,8 +362,8 @@ def update_player_scatter(batter_name):
         opacity=1,
         color_continuous_scale='balance',
         hover_data=['launch_speed', 'launch_angle', 'pulled_barrel'],
-        width=750,
-        height=700)
+        width=1050,
+        height=1000)
 
     bbe_scatter.update_traces(line=dict(dash='dash', width=3, color="white"))
     
@@ -402,7 +514,10 @@ def update_styles(selected_columns):
 def update_table(selected_pa):
     filtered_df = df[df.PA >= selected_pa]
 
-    fig = px.scatter(filtered_df, x="xwOBA", y="sxwOBA", color="diff", color_continuous_scale="balance", trendline="ols", hover_data=["batter_name", "PA", "diff %"])
+    fig = px.scatter(filtered_df, x="xwOBA", y="sxwOBA", color="diff",
+        color_continuous_scale="balance", trendline="ols",
+        hover_data=["batter_name", "PA", "diff %"],
+        width=1050, height=1000)
 
     return fig
 
