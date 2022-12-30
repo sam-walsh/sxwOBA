@@ -23,8 +23,6 @@ def get_season_data():
     A script that queries 2022 statcast data week-by-week from opening day up to current date to handle api limits.
     """
 
-    print("Include playoffs?")
-    option = input('y or n: ')
     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
     ## https://github.com/jldbc/pybaseball for more info
 
@@ -55,13 +53,9 @@ def get_season_data():
             df.to_csv("statcast_data/{}.csv".format(today)) ## Saves statcast play-by-play data to .csv
         return df
     else:
-        df = pd.read_csv('statcast_data/2022-11-09.csv')
+        df = pd.read_csv('statcast_data/2022-10-18.csv')
         print("loading in saved statcast file")
-
-    if option != 'y':
-        df['game_date'] = pd.to_datetime(df['game_date'])
-        df = df.loc[df['game_date'] <= '2022-10-03']
-    return df
+        return df
 
 def get_fg_stats(year, selected_stats=selected_stats):
     out = pb.fg_batting_data(year, qual=0)
@@ -75,7 +69,10 @@ def main():
     """
     A script that retrieves updated xwOBA and spray angle xwOBA leaderboards.
     """
-    
+
+    print("Overwrite previous statcast data file?")
+    option = input('y/n: ')
+
     ## Retrieving 2022 statcast data via pybaseball
     df = get_season_data()
     df = df.drop_duplicates()
@@ -153,11 +150,11 @@ def main():
     bins = pd.IntervalIndex.from_tuples([(bbe['theta_deg'].min(), 30), (30, 60), (60, bbe['theta_deg'].max())])
     bbe['hit_direction'] = pd.cut(bbe['theta_deg'], bins=bins).map(dict(zip(bins, labels)))
 
-    bbe['pull'] = np.where((((bbe['stand']=='R') & (bbe['hit_direction']=='left')) | ((bbe['stand']=='L') & (bbe['hit_direction']=='right'))), 1, 0)
-    bbe['pulled_barrel'] = np.where(((bbe['pull']==1) & (bbe['launch_speed_angle']==6)), 1, 0)
+    bbe['pull'] = np.where(np.logical_or(np.logical_and((bbe['stand']=='R'),(bbe['hit_direction']=='left')), np.logical_and((bbe['stand']=='L'),(bbe['hit_direction']==1))), 1, 0)
+    bbe['pulled_barrel'] = np.where(np.logical_and((bbe['pull']==1),(bbe['launch_speed_angle']==6)), 1, 0)
 
     ## Incorporating spray angle into the random forest model
-    bbe_spray = bbe.dropna(subset=['hc_x', 'hc_y'])
+    bbe_spray = bbe.dropna(subset=['launch_speed', 'launch_angle', 'woba_value'])
     print(bbe_spray.columns)
     bbe_spray[['launch_speed', 'launch_angle', 'theta_deg']] = bbe_spray[['launch_speed', 'launch_angle', 'theta_deg']].fillna(0)
 
@@ -216,9 +213,21 @@ def main():
     print('\n')
     print(spray_xwoba_leaders.shape)
 
+
+    spray_xwoba_leaders = spray_xwoba_leaders[['batter_name', 'batter_id', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'diff', 'diff %', 'BB%', 'K%', 'Barrels', 'pulled_barrels']]
+    spray_xwoba_leaders['Pulled Barrel %'] = spray_xwoba_leaders['pulled_barrels'].div(spray_xwoba_leaders['Barrels']).mul(100).round()
+    spray_xwoba_leaders['BB%'] = spray_xwoba_leaders['BB%'].mul(100)
+    spray_xwoba_leaders['K%'] = spray_xwoba_leaders['K%'].mul(100)
+    spray_xwoba_leaders = spray_xwoba_leaders.round(3)
+
+    bbe['field_x'] = bbe.field_x.mul(2)
+    bbe['field_y'] = bbe.field_y.mul(2)
+    
     ## Save leaderboards and bbe data to csv_file
     bbe.to_csv('bbe.csv')
-    if option:
+    if option != 'y':
+        spray_xwoba_leaders.to_csv("spray_xwoba{}.csv".format(today))
+    else:
         spray_xwoba_leaders.to_csv("spray_xwoba.csv")
 
     return spray_xwoba_leaders
