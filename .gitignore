@@ -1,5 +1,5 @@
-*.csv
-*.db
+bbe.csv
+sxwoba_data.db
 \statcast_data
 \models
 *.pyc
