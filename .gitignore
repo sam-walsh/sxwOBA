@@ -1,7 +1,7 @@
-#ignore all .csv files
+*.csv
+*.db
 \statcast_data
 \models
-venv
 *.pyc
 .DS_Store
 .env

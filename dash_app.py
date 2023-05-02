@@ -219,11 +219,11 @@ app.layout = html.Div([
     dcc.Store(id='bbe-store', storage_type='memory', data=bbe.to_dict('records')),
     html.H1(children='sxwOBA: spray-angle enhanced xwOBA', style={'text-align': 'center'}),
 
-    html.H2(children='Select a year and player:'),
+    html.H2(children='Select a player and year:'),
     
     html.Div([
         dcc.Dropdown(
-            value=dropdown_options[0]['value'],
+            value=dropdown_options[411]['value'],
             options=dropdown_options,
             id='dropdown',
             style={'display':'inline-block', 'width': '200px'}
@@ -238,7 +238,7 @@ app.layout = html.Div([
     html.Div([
         html.Img(
             id='player-img',
-            src=Image.open('player_images/680552.png'),
+            src="https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/682998/headshot/67/current",
             className='row',
             style={'display':'inline-block', 'align-items': 'left', 'max-width': '50%'}
         ),
@@ -360,17 +360,14 @@ def update_outputs(chosen_rows, batter_dropval, year, selected_pa, n_clicks, dat
     barchart_figure.update_xaxes(title='')
     barchart_figure.update_yaxes(title='')
 
-    # Update player_img 
-    
+    # Update player_img
     if batter_dropval is not None:
         id = batter_dropval
-        path = 'player_images/{}.png'.format(id)
-        im = Image.open(path)
-        player_img_src = im
+        player_img_url = f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{id}/headshot/67/current"
     else:
-        player_img_src = no_update
+        player_img_url = no_update
 
-    return barchart_figure, player_scatter_figure, player_img_src, data, comparison_scatter_figure, dropdown_options
+    return barchart_figure, player_scatter_figure, player_img_url, data, comparison_scatter_figure, dropdown_options
 
 if __name__ == '__main__':
     app.run_server(debug=True, host = '127.0.0.1', dev_tools_hot_reload=False)
