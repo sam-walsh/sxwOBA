@@ -1,6 +1,7 @@
-bbe.csv
+test.csv
 sxwoba_data.db
 \statcast_data
+\leaders
 \models
 *.pyc
 .DS_Store
