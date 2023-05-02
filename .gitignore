@@ -1,7 +1,7 @@
 #ignore all .csv files
 \statcast_data
+\models
 venv
 *.pyc
-*.ipynb
 .DS_Store
 .env

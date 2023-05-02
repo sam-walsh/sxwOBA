@@ -4,135 +4,173 @@ import pybaseball as pb
 import math
 import os
 import datetime as dt
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from pybaseball import cache
+from datetime import datetime
+import joblib
+import xgboost as xgb
 cache.enable()
 
-today = dt.date.today()
+today = dt.date.today().strftime('YYYY-MM-DD')
+
 
 selected_stats = [
     'Name', 'G', 'AB', 'PA', 'H', '2B', '3B', 'HR', 'R',
     'RBI', 'SB', 'CS', 'BB%', 'K%', 'OBP', 'SLG', 'wOBA',
-    'xwOBA', 'xBA', 'xSLG', 'Barrels', 'EV', 'LA', 'WAR',
+    'xBA', 'xSLG', 'Barrels', 'EV', 'LA', 'WAR',
     'key_mlbam'
 ]
 
-def get_season_data():
+def get_season_data(start_dt, end_dt):
     """
     A script that queries 2022 statcast data week-by-week from opening day up to current date to handle api limits.
-    """
 
+    start_dt: YYYY-MM-DD (opening day) str
+    end_dt: YYYY-MM-DD (last day of the regular season) str
+    """
     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
     ## https://github.com/jldbc/pybaseball for more info
 
-    ## Divides query length into n queries of week length to handle api limits
-    if len(os.listdir('statcast_data')) == 0:
-        print("no statcast file found, querying 2022 data via pybaseball")
+    df = pb.statcast(start_dt, end_dt)
+    year = dt.datetime.strptime(start_dt, "%Y-%m-%d").year
+    df.to_csv("statcast_data/{}.csv".format(year)) ## Saves statcast play-by-play data to .csv
+    return df
 
-        weeks = []
-        start = dt.date(2022, 4, 7)
-        days = (today-start).days
-        num_weeks = (days // 7) + 2
-        counter = 0
-        for d in range(days):
-            if d%7 == 0:
-                end = start + dt.timedelta(days=7)
-                week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-                weeks.append(week)
-                counter+=1
-                print("week {}/{} complete".format(counter, num_weeks))
-                start = end
+def create_target_variable(df, events=['intentional_walk', 'walk', 'hit_by_pitch', 'single', 'double', 'triple', 'home_run', 'strikeout', 'other_out']):
+    df['target'] = -1
+    for i, event in enumerate(events):
+        if event == 'intentional_walk':
+            df.loc[df['des'].str.contains('intentional'), 'target'] = i
+        elif event == 'walk':
+            df.loc[df['events'] == event, 'target'] = i
+            df.loc[(df['events'] == event) & (~df['des'].str.contains('intentional')), 'target'] = i
+        elif event == 'strikeout':
+            df.loc[df['events'] == 'strikeout', 'target'] = i
+            df.loc[df['events'] == 'strikeout_double_play', 'target'] = i
+        elif event == 'other_out':
+            df.loc[df['events'].isin(['field_out', 'force_out', 'grounded_into_double_play', 'fielders_choice',
+                                      'fielders_choice_out', 'double_play', 'triple_play', 'sac_fly', 'sac_fly_double_play']), 'target'] = i
+        else:
+            df.loc[df['events'] == event, 'target'] = i
+    return df
+
+
+# def get_season_data():
+#     """
+#     A script that queries 2022 statcast data week-by-week from opening day up to current date to handle api limits.
+#     """
+
+#     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
+#     ## https://github.com/jldbc/pybaseball for more info
+
+#     ## Divides query length into n queries of week length to handle api limits
+#     if len(os.listdir('statcast_data')) == 0:
+#         print("no statcast file found, querying 2022 data via pybaseball")
+
+#         weeks = []
+#         start = dt.date(2022, 4, 7)
+#         days = (today-start).days
+#         num_weeks = (days // 7) + 2
+#         counter = 0
+#         for d in range(days):
+#             if d%7 == 0:
+#                 end = start + dt.timedelta(days=7)
+#                 week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+#                 weeks.append(week)
+#                 counter+=1
+#                 print("week {}/{} complete".format(counter, num_weeks))
+#                 start = end
                 
-            elif (d+1) == days:
-                end = start + dt.timedelta(days=(d%7))
-                week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-                counter+=1
-                print("week {}/{} complete".format(counter, num_weeks))
-            df = pd.concat(weeks)
-            df.to_csv("statcast_data/{}.csv".format(today)) ## Saves statcast play-by-play data to .csv
-        return df
-    else:
-        df = pd.read_csv('statcast_data/2022-10-18.csv')
-        print("loading in saved statcast file")
-        return df
+#             elif (d+1) == days:
+#                 end = start + dt.timedelta(days=(d%7))
+#                 week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+#                 counter+=1
+#                 print("week {}/{} complete".format(counter, num_weeks))
+#             df = pd.concat(weeks)
+#             df.to_csv("statcast_data/{}.csv".format(today)) ## Saves statcast play-by-play data to .csv
+#         return df
+#     else:
+#         df = pd.read_csv('statcast_data/2022-10-18.csv')
+#         print("loading in saved statcast file")
+#         return df
 
 def get_fg_stats(year, selected_stats=selected_stats):
     out = pb.fg_batting_data(year, qual=0)
+    out = out.drop(columns=['xwOBA'])
     print(out.shape)
     id_table = pb.playerid_reverse_lookup(out['IDfg'], key_type='fangraphs')
     out = pd.merge(out, id_table, left_on='IDfg', right_on='key_fangraphs')
 
     return out[selected_stats]
 
-def main():
-    """
-    A script that retrieves updated xwOBA and spray angle xwOBA leaderboards.
-    """
+def prepare_training_data(year):
+    start_end_dates = pd.read_csv('start_end_dates.csv')
 
-    print("Overwrite previous statcast data file?")
-    option = input('y/n: ')
+    csv_filename = f"statcast_data/{year}.csv"
 
-    ## Retrieving 2022 statcast data via pybaseball
-    df = get_season_data()
+    # Check if the CSV file for the corresponding year exists
+    if os.path.exists(csv_filename):
+        # If the CSV file exists, read the data from the CSV file
+        df = pd.read_csv(csv_filename)
+    else:
+        start_dt, end_dt = start_end_dates.loc[start_end_dates['year'] == year, ['start_dt', 'end_dt']].values[0]
+        df = get_season_data(start_dt, end_dt)
+
+    # if year == 2023:
+    #     start_dt, end_dt = start_end_dates.loc[start_end_dates['year'] == 2022, ['start_date', 'end_date']].values[0]
+    #     df_2022 = get_season_data(start_dt, end_dt)
+    #     df = pd.concat([df, df_2022], axis=0)
+
+    sprint_speed = pd.read_csv("sprint_speed.csv")
+    sprint_speed = sprint_speed[['player_id', 'sprint_speed']]
+    df = pd.merge(df, sprint_speed, left_on='batter', right_on='player_id')
+    return df
+
+
+    # # Get the current date and time
+    # now = datetime.now()
+
+    # # Format the date and time
+    # formatted_now = now.strftime("%Y-%m-%d")
+
+    # # Read current data
+    # df = pd.read_csv("statcast_data/2022.csv")
+    # df['game_date'] = pd.to_datetime(df['game_date'])
+    # # if df['game_date'].max().year > 2022:
+    # #     start = str(df['game_date'].max()).split(' ')[0]
+    # # else:
+    # #     start = '2023-03-30'
+    # # recent = pb.statcast(start_dt=start, end_dt=formatted_now)
+
+    # # df = pd.concat([df, recent], axis = 0)
+    # sprint_speed = pd.read_csv("sprint_speed.csv")
+    # sprint_speed = sprint_speed[['player_id', 'sprint_speed']]
+    # df = pd.merge(df, sprint_speed, left_on='batter', right_on='player_id')
+    # return df
+
+def preprocess_data(df):
     df = df.drop_duplicates()
     df['batter'] = df.batter.astype(int)
+    df['game_year'] = pd.to_datetime(df['game_date']).dt.year
 
+    stand_dummies = pd.get_dummies(df['stand'], prefix='stand')
+    df = pd.concat([df, stand_dummies], axis=1)
 
-    ## Creating a batter name column from mlbam ids
+    # Create a batter name column from mlbam ids
     names = pb.playerid_reverse_lookup(df['batter'])
     names['batter_name'] = names['name_first'] + " " + names['name_last']
     names = names[['key_mlbam', 'batter_name']]
     df = pd.merge(df, names, how='left', left_on='batter', right_on='key_mlbam')
 
 
-    ## Subsetting for batted ball events with non-null variables of interest
+    # Subset for batted ball events with non-null variables of interest
     bbe = df.loc[(df['description'] == 'hit_into_play') & (df['estimated_woba_using_speedangle'].notna())]
+    bbe = bbe.dropna(subset=['launch_speed', 'launch_angle', 'stand_L', 'hc_x', 'hc_y'])
+
     non_bbe = df.loc[(df['estimated_woba_using_speedangle'].isna()) & (df['description'] != 'hit_into_play')]
 
-    print(bbe[['launch_speed', 'launch_angle', 'hc_x', 'hc_y', 'estimated_woba_using_speedangle']].isna().sum())
-    print(bbe.loc[bbe['hc_x'].isna()])
-    bbe = bbe.dropna(subset=['hc_x', 'hc_y'])
-    
-
-    ## Training a random forest regression model based on exit velocity and launch angle and using cross-validation to measure performance
-    X = bbe[['launch_speed', 'launch_angle']]
-    y = bbe['woba_value'].values
-
-    model = RandomForestRegressor(
-        n_estimators=100,
-        min_samples_leaf = 100
-    )
-
-    model.fit(X, y)
-    print("CV xwOBA fit (R^2):") 
-    print(cross_val_score(model, X, y, cv=5))
-    y_pred = model.predict(X)
-
-
-    ## Grouping events by batter to get mean xwOBAcon for each player
-    bbe['rf_xwoba'] = y_pred
-    xwobacon_leaders = bbe.groupby(['batter_name', 'batter'])['rf_xwoba'].agg(['mean', 'count'])
-    print('\n')
-    print(xwobacon_leaders.shape)
-
-
-    ## Counting all wOBA events (bbe, strikeouts, hbp, and BB) to count up total plate appearances
-    num_pa = non_bbe.groupby(['batter_name', 'batter'])['woba_value'].agg(['mean', 'count'])
-    print('\n')
-    print(num_pa.shape)
-
-    ## Calculating xwOBA from bbe xwOBAcon and non-bbe wOBA
-    xwobacon_leaders['non_bbe'] = num_pa['mean']
-    xwobacon_leaders['non_bbe_count'] = num_pa['count']
-    xwobacon_leaders['total'] = num_pa['count'].add(xwobacon_leaders['count'])
-
-    xwobacon_leaders['xwoba'] = ((xwobacon_leaders['mean']*xwobacon_leaders['count']) + \
-                                (xwobacon_leaders['non_bbe']*xwobacon_leaders['non_bbe_count'])) / \
-                                xwobacon_leaders['total']
-
-    
-    ## Rotating hit coordinates over 1st quadrant of xy-plane for ease in calculating spray angle
+    # [Rotate hit coordinates over 1st quadrant of xy-plane for ease in calculating spray angle]
     bbe['hc_x_adj'] = bbe['hc_x'].sub(126)
     bbe['hc_y_adj'] = 204.5 - bbe['hc_y']
     rad = -math.pi/4
@@ -140,9 +178,8 @@ def main():
                             [-math.sin(rad), math.cos(rad)]])
     bbe[['field_x', 'field_y']] = bbe[['hc_x_adj', 'hc_y_adj']].dot(rotation_mat).astype(np.float64)
 
-    ## Calculating spray angle (theta_deg) from inverse tangent function of transformed hit coordinates
-    bbe['field_x'] = bbe['field_x'].astype(float)
-    bbe['field_y'] = bbe['field_y'].astype(float)
+    ## Calculate spray angle (theta_deg) from inverse tangent function of transformed hit coordinates
+    bbe[['field_x', 'field_y']] = bbe[['field_x', 'field_y']].astype(float)
     bbe['theta'] = np.arctan(bbe['field_y'].div(bbe['field_x']))
     bbe['theta_deg'] = bbe['theta'].mul(180/math.pi)
 
@@ -153,85 +190,142 @@ def main():
     bbe['pull'] = np.where(np.logical_or(np.logical_and((bbe['stand']=='R'),(bbe['hit_direction']=='left')), np.logical_and((bbe['stand']=='L'),(bbe['hit_direction']==1))), 1, 0)
     bbe['pulled_barrel'] = np.where(np.logical_and((bbe['pull']==1),(bbe['launch_speed_angle']==6)), 1, 0)
 
-    ## Incorporating spray angle into the random forest model
-    bbe_spray = bbe.dropna(subset=['launch_speed', 'launch_angle', 'woba_value'])
-    print(bbe_spray.columns)
-    bbe_spray[['launch_speed', 'launch_angle', 'theta_deg']] = bbe_spray[['launch_speed', 'launch_angle', 'theta_deg']].fillna(0)
+    # Create training dataframe for spray angle model
+    bbe = bbe.dropna(subset=['launch_speed', 'launch_angle', 'woba_value'])
+    bbe[['launch_speed', 'launch_angle', 'theta_deg']] = bbe[['launch_speed', 'launch_angle', 'theta_deg']].fillna(-100)
 
-    X_spray = bbe_spray[['launch_speed', 'launch_angle', 'theta_deg']]
-    y_spray = bbe_spray['woba_value'].values
+    return df, bbe
 
-    print("CV Spray angle xwOBA fit (R^2):") 
-    print(cross_val_score(model, X_spray, y_spray, cv=5))
 
-    model.fit(X_spray, y_spray)
-    y_pred_spray = model.predict(X_spray)
+def train_model(bbe, year):
+    X = bbe[['launch_speed', 'launch_angle', 'stand_L', 'sprint_speed']]
+    y = bbe['woba_value'].values
+
+    # Train a random forest regression model based on exit velocity and launch angle and using cross-validation to measure performance
+
+    model1 = xgb.XGBRegressor(tree_method='gpu_hist')
+
+    model2 = xgb.XGBRegressor(tree_method='gpu_hist')
+
+    prob_model = RandomForestClassifier(
+        n_estimators=100
+    )
+
+    try:
+        model1 = joblib.load('models/rf_xwoba_model.joblib')
+    except:
+        print("CV xwOBA fit (R^2):") 
+        print(cross_val_score(model1, X, y, cv=5))
+        model1.fit(X, y)
+
+    y_pred = model1.predict(X)
+
+
+    ## Grouping events by batter to get mean xwOBAcon for each player
+    bbe['rf_xwoba'] = y_pred
+
+    X_spray = bbe[['launch_speed', 'launch_angle', 'theta_deg', 'stand_L', 'sprint_speed']]
+    y_spray = bbe['woba_value'].values
+
+    
+
+    try:
+        model2 = joblib.load('models/rf_sxwoba_model.joblib')
+    except:
+        print("CV Spray angle xwOBA fit (R^2):") 
+        print(cross_val_score(model2, X_spray, y_spray, cv=5))
+        model2.fit(X_spray, y_spray)
+    y_pred_spray = model2.predict(X_spray)
 
     bbe['sxwOBA'] = y_pred_spray
 
-    ## Generating spray angle xwOBA leaderboards
-    spray_xwobacon = bbe.groupby(['batter_name', 'batter'])['sxwOBA'].agg(['mean', 'count'])
-    print('\n')
-    print(spray_xwobacon.shape)
+    # try:
+    #     prob_model = joblib.load('models/prob_model.joblib')
+    # except:
+    prob_model.fit(X_spray, bbe['target'].values)
+    probs = prob_model.predict_proba(X_spray)
+    print(probs)
+    bbe['sxwoba_probs'] = list(probs)
+    lweights_2022 = np.array([0, 0.884, 1.261, 1.601, 2.072, 0])
+    sxwoba = probs.dot(lweights_2022)
+    bbe['sxwoba_prob_model'] = sxwoba
+    bbe['sxwoba_prob_model'] = bbe['sxwoba_prob_model'].where(bbe['events']!='walk', 0.689)
+    bbe['sxwoba_prob_model'] = bbe['sxwoba_prob_model'].where(bbe['events']!='hit_by_pitch', 0.720)
+    print(prob_model.classes_)
 
-    ## Adding spray angle xwOBA and pulled barrels to leaderboards
-    pulled_barrels = bbe.groupby(['batter_name', 'batter'])['pulled_barrel'].agg(['mean', 'count'])
-    xwobacon_leaders['pulled_barrels'] = pulled_barrels['count'].mul(pulled_barrels['mean']).round ()
-    xwobacon_leaders['spray_xwoba_count'] = spray_xwobacon['count']
-    xwobacon_leaders['sxwOBA'] = spray_xwobacon['mean']
-    xwobacon_leaders = xwobacon_leaders.reset_index()
-    print(xwobacon_leaders.head())
+    joblib.dump(model1, f'models/rf_xwoba_model_{year}.joblib')
+    joblib.dump(model2, f'models/rf_sxwoba_model_{year}.joblib')
+    joblib.dump(prob_model, f'models/prob_model_{year}.joblib')
+    return bbe
 
-    ## Generating weighted average of bbe and non-bbe xwOBA and wOBA (cannot calculate xwOBA of non-bbe events)
-    xwoba_sum = xwobacon_leaders['mean'].mul(xwobacon_leaders['spray_xwoba_count'])
-    bbe_sum = xwobacon_leaders['sxwOBA'].mul(xwobacon_leaders['spray_xwoba_count'])
-    non_bbe_sum = xwobacon_leaders['non_bbe'].mul(xwobacon_leaders['non_bbe_count'])
-    total = xwobacon_leaders['non_bbe_count'].add(xwobacon_leaders['spray_xwoba_count'])
-    spray_xwoba = (bbe_sum + non_bbe_sum) / total # spray angle xwOBA
 
-    ## Creating data frame from leaders 
-    cumulative_stats = get_fg_stats(2022)
-    print('cumulative stats:', cumulative_stats.shape)
-    spray_xwoba_leaders = pd.DataFrame.from_dict({
-    'batter_name' : xwobacon_leaders['batter_name'],
-    'batter_id': xwobacon_leaders['batter'],
-    'sxwOBA': spray_xwoba,
-    'pulled_barrels': xwobacon_leaders['pulled_barrels'],
-    'bbe' : total
-    })
-    spray_xwoba_leaders = spray_xwoba_leaders.merge(cumulative_stats, left_on='batter_id', right_on='key_mlbam')
-    print('\n')
-    print('spray xwoba:', spray_xwoba_leaders.shape)
-    print(cumulative_stats.loc[cumulative_stats['Name']=='David Villar'])
+def calculate_expected_xwoba(df, bbe, year):
+    df['xwoba'] = df['woba_value']
+    df['sxwoba'] = df['woba_value']
     
 
-    ## Data manipulation and inclusion of % diff column
-    spray_xwoba_leaders = spray_xwoba_leaders.loc[(spray_xwoba_leaders['xwOBA']!=0) & (spray_xwoba_leaders['sxwOBA']!=0)]  # prevents division by zero
-    print(spray_xwoba_leaders.head())
-    spray_xwoba_leaders['diff'] = spray_xwoba_leaders['sxwOBA'].sub(spray_xwoba_leaders['xwOBA'])
-    spray_xwoba_leaders['diff %'] = spray_xwoba_leaders['diff'].div(spray_xwoba_leaders['xwOBA']).mul(100).round(2)
+    df.loc[bbe.index, 'xwOBA'] = bbe['rf_xwoba']
+    df.loc[bbe.index, 'sxwOBA'] = bbe['sxwOBA']
+    df.loc[bbe.index, 'sxwoba_prob_model'] = bbe['sxwoba_prob_model']
+
+    print(df.columns)
+    df[['xwOBA', 'sxwOBA']] = df[['xwOBA', 'sxwOBA']].where(df['target'] != 0, 0.689)
+    df[['xwOBA', 'sxwOBA']] = df[['xwOBA', 'sxwOBA']].where(df['target'] != 1, 0.689)
+    df[['xwOBA', 'sxwOBA']] = df[['xwOBA', 'sxwOBA']].where(df['target'] != 2, 0.720)
+    df[['xwOBA', 'sxwOBA']] = df[['xwOBA', 'sxwOBA']].where(df['target'] != 7, 0)
+
+    leaders = df.loc[df['target']!=-1].groupby('batter')[['xwOBA', 'sxwOBA']].mean()
+    sxwoba_leaders = df.loc[df['target'] != -1].groupby('batter')['sxwoba_prob_model'].agg(['mean', 'count'])
+    return leaders, sxwoba_leaders
+
+def postprocess_data(df, leaders, bbe, year):
+    df['pulled_barrel'] = 0
+    df.loc[bbe.index, 'pulled_barrel'] = bbe['pulled_barrel']
+    pulled_barrels = df.groupby('batter')['pulled_barrel'].sum() 
+    leaders['pulled_barrels'] = pulled_barrels
+    cumulative_stats = get_fg_stats(year)
+
+    leaders = leaders.merge(cumulative_stats, left_on='batter', right_on='key_mlbam')
     print('\n')
-    print(spray_xwoba_leaders.shape)
+    print('leaders:', leaders.shape)
+    print(cumulative_stats.loc[cumulative_stats['Name']=='David Villar'])
 
+    # Data manipulation and inclusion of % diff 
+    print(leaders.sort_values('PA', ascending=False).head(10))
+    leaders['diff'] = leaders['sxwOBA'].sub(leaders['xwOBA'])
+    leaders['diff%'] = leaders['diff'].div(leaders['xwOBA']).mul(100).round(2)
+    print('\n')
+    print(leaders.columns)
 
-    spray_xwoba_leaders = spray_xwoba_leaders[['batter_name', 'batter_id', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'diff', 'diff %', 'BB%', 'K%', 'Barrels', 'pulled_barrels']]
-    spray_xwoba_leaders['Pulled Barrel %'] = spray_xwoba_leaders['pulled_barrels'].div(spray_xwoba_leaders['Barrels']).mul(100).round()
-    spray_xwoba_leaders['BB%'] = spray_xwoba_leaders['BB%'].mul(100)
-    spray_xwoba_leaders['K%'] = spray_xwoba_leaders['K%'].mul(100)
-    spray_xwoba_leaders = spray_xwoba_leaders.round(3)
+    leaders = leaders[['Name', 'key_mlbam', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'diff', 'diff%', 'BB%', 'K%', 'HR', 'LA', 'Barrels', 'pulled_barrels']]
+    leaders['BB%'] = leaders['BB%'].mul(100)
+    leaders['K%'] = leaders['K%'].mul(100)
+    leaders['year'] = year
+    leaders = leaders.round(3)
 
     bbe['field_x'] = bbe.field_x.mul(2)
     bbe['field_y'] = bbe.field_y.mul(2)
     
-    ## Save leaderboards and bbe data to csv_file
-    bbe.to_csv('bbe.csv')
-    if option != 'y':
-        spray_xwoba_leaders.to_csv("spray_xwoba{}.csv".format(today))
-    else:
-        spray_xwoba_leaders.to_csv("spray_xwoba.csv")
 
-    return spray_xwoba_leaders
+    return df, leaders, bbe
+
+def main():
+    years_to_query = [2022, 2023]
+    start_end = pd.read_csv("start_end_dates.csv")
+    print(start_end.info())
+
+    for year in years_to_query:
+        season_df = prepare_training_data(year)
+        season_df = create_target_variable(season_df)
+        df, bbe = preprocess_data(season_df)
+        bbe = train_model(bbe, year)
+        leaders, sxwoba_leaders = calculate_expected_xwoba(df, bbe, year)
+        df, leaders, bbe = postprocess_data(df, leaders, bbe, year)
+
+        # Save data to csv
+        bbe.to_csv(f"statcast_data/bbe_{year}.csv")
+        leaders.to_csv(f"leaders/spray_xwoba_{year}.csv", index=False)
+
 
 if __name__ == "__main__":
     main()
-    
