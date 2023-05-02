@@ -2,6 +2,7 @@
 # visit http://127.0.0.1:8050/ in your web browser.
 
 ## TODO 
+## -[] DOCUMENT CODE
 ## -[X] get PA slider working
 ## -[X] fix PA totals
 ## -[X] add player picture functionality from dropdown
@@ -12,372 +13,73 @@
 ## -[] add pulled barrels and % to leaderboard
 
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-from dash import Dash, dash_table, html, dcc
-from dash.dependencies import Input, Output
+from dash import Dash, dash_table, html, dcc, callback_context, no_update
+from dash.dependencies import Input, Output, State
 from PIL import Image
 import requests
+from dash.exceptions import PreventUpdate
+import sqlite3
 
 
-app = Dash(__name__)
-theme = {
-    'dark': True,
-    'detail': '#007439',
-    'primary': '#00EA64',
-    'secondary': '#6E6E6E',
-}
+app = Dash(__name__,
+    meta_tags=[{'name':'viewport',
+    'content':'width=device-width, initial-scale=1.0, maximum-scale=1.2, minimum-scale=1.0'}]
+)
 server = app.server
 
 # assume you have a "long-form" data frame
 # see https://plotly.com/python/px-arguments/ for more options
-df = pd.read_csv("spray_xwoba.csv")
-bbe = pd.read_csv("bbe.csv")
-bbe['field_x'] = bbe.field_x.mul(2)
-bbe['field_y'] = bbe.field_y.mul(2)
-df = df.drop(['Unnamed: 0'], axis=1)
-df= df[['batter_name', 'PA', 'wOBA', 'xwOBA', 'sxwOBA', 'diff', 'diff %', 'BB%', 'K%', 'Barrels', 'pulled_barrels']]
-df['Pulled Barrel %'] = df['pulled_barrels'].div(df['Barrels']).mul(100).round()
-df['BB%'] = df['BB%'].mul(100)
-df['K%'] = df['K%'].mul(100)
-print(df.info)
-df = df.round(3)
-names = df.batter_name.unique().tolist()
+
+def get_data(year):
+    conn = sqlite3.connect("sxwoba_data.db")
+    df = pd.read_sql_query(f"SELECT * FROM spray_xwoba WHERE year = {year}", conn)
+    bbe = pd.read_sql_query(f"SELECT * FROM bbe WHERE game_year = {year}", conn)
+
+    df = df[["Name", "sxwOBA", "xwOBA", "diff%", "wOBA", "PA", "HR", "pulled_barrels", "Barrels", "BB%", "K%", "LA", "key_mlbam"]]
+    df['diff%'] = df['diff%'].round(1)
+    df['pulled_barrels'] = df['pulled_barrels'].astype(int)
+    df['Barrels'] = df['Barrels'].astype(int)
+    df = df.rename(columns={'pulled_barrels':'pbarrels', 'Barrels': 'barrels', 'key_mlbam':'id'})
+
+    conn.close()
+    return df, bbe
 
 
-pitch_data = pd.read_csv("bbe.csv")
-pitch_data['field_x'] = pitch_data.field_x.mul(2)
-pitch_data['field_y'] = pitch_data.field_y.mul(2)
+def comparison_scatter(data_frame):
+    fig = px.scatter(data_frame,
+        x="xwOBA",
+        y="sxwOBA",
+        color="diff%",
+        color_continuous_scale="balance",
+        trendline="ols",
+        hover_name="Name",
+        hover_data=["Name", "HR", "pbarrels", "BB%", "K%", "LA"],
+        width=400,
+        height=350)
 
-fig = px.scatter(df, x="xwOBA", y="sxwOBA", color="diff", color_continuous_scale="balance", trendline="ols", hover_data=["batter_name", "PA"], width=1050, height=1000)
+    fig.update_layout(
+        xaxis_range=[0.200, 0.5],
+        yaxis_range=[0.200, 0.5],
+        xaxis=dict(fixedrange=True),
+        yaxis=dict(fixedrange=True)
+    )
+    return fig
 
-field_swoba = px.density_heatmap(pitch_data,
-    x='field_x',
-    y="field_y",
-    z="sxwOBA",
-    histfunc="avg",
-    color_continuous_scale='balance',
-    height=600,
-    width=600)
-fig.update_yaxes(
-    scaleanchor = "x",
-    scaleratio = 1,
-  )
-
-field_swoba.add_hline(y=0, line_color="yellow")
-field_swoba.add_vline(x=0, line_color="yellow")
-field_swoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-360, y0=-360, x1=360, y1=360,
-    line_color="red",
-    line=dict(width=3, dash='dash')
-)
-field_swoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-330, y0=-330, x1=330, y1=330,
-    line_color="orange",
-    line=dict(width=3, dash='dash')
-)
-field_swoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-300, y0=-300, x1=300, y1=300,
-    line_color="yellow",
-    line=dict(width=3, dash='dash')
-)
-field_swoba.layout.coloraxis.colorbar.title = "sxwOBA"
-field_swoba.update_layout(xaxis_range=[-20,380], yaxis_range=[-20,380])
-
-field_xwoba = px.density_heatmap(pitch_data,
-    x='field_x',
-    y="field_y",
-    z="estimated_woba_using_speedangle",
-    histfunc="avg",
-    color_continuous_scale="balance",
-    height=600,
-    width=600)
-field_xwoba.add_hline(y=0, line_color="yellow")
-field_xwoba.add_vline(x=0, line_color="yellow")
-field_xwoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-360, y0=-360, x1=360, y1=360,
-    line_color="red",
-    line=dict(width=3, dash='dash')
-)
-field_xwoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-330, y0=-330, x1=330, y1=330,
-    line_color="orange",
-    line=dict(width=3, dash='dash')
-)
-field_xwoba.add_shape(type="circle",
-    xref="x", yref="y",
-    x0=-300, y0=-300, x1=300, y1=300,
-    line_color="yellow",
-    line=dict(width=3, dash='dash')
-)
-field_xwoba.layout.coloraxis.colorbar.title = "xwOBA"
-field_xwoba.update_layout(xaxis_range=[-20,380], yaxis_range=[-20,380])
-
-PAGE_SIZE = 10
-
-arenado_img = Image.open("player_images/571448.png")
-
-def data_bars(df, column):
-    n_bins = 100
-    bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
-    ranges = [
-        ((df[column].max() - df[column].min()) * i) + df[column].min()
-        for i in bounds
-    ]
-    styles = []
-    for i in range(1, len(bounds)):
-        min_bound = ranges[i - 1]
-        max_bound = ranges[i]
-        max_bound_percentage = bounds[i] * 100
-        styles.append({
-            'if': {
-                'filter_query': (
-                    '{{{column}}} >= {min_bound}' +
-                    (' && {{{column}}} < {max_bound}' if (i < len(bounds) - 1) else '')
-                ).format(column=column, min_bound=min_bound, max_bound=max_bound),
-                'column_id': column
-            },
-            'background': (
-                """
-                    linear-gradient(90deg,
-                    #0074D9 0%,
-                    #0074D9 {max_bound_percentage}%,
-                    white {max_bound_percentage}%,
-                    white 100%)
-                """.format(max_bound_percentage=max_bound_percentage)
-            ),
-            'paddingBottom': 2,
-            'paddingTop': 2
-        })
-
-    return styles
-
-
-def data_bars_diverging(df, column, color_above='#3D9970', color_below='#FF4136'):
-    n_bins = 100
-    bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
-    col_max = df[column].max()
-    col_min = df[column].min()
-    ranges = [
-        ((col_max - col_min) * i) + col_min
-        for i in bounds
-    ]
-    midpoint = (col_max + col_min) / 2.
-
-    styles = []
-    for i in range(1, len(bounds)):
-        min_bound = ranges[i - 1]
-        max_bound = ranges[i]
-        min_bound_percentage = bounds[i - 1] * 100
-        max_bound_percentage = bounds[i] * 100
-
-        style = {
-            'if': {
-                'filter_query': (
-                    '{{{column}}} >= {min_bound}' +
-                    (' && {{{column}}} < {max_bound}' if (i < len(bounds) - 1) else '')
-                ).format(column=column, min_bound=min_bound, max_bound=max_bound),
-                'column_id': column
-            },
-            'paddingBottom': 2,
-            'paddingTop': 2
-        }
-        if max_bound > midpoint:
-            background = (
-                """
-                    linear-gradient(90deg,
-                    white 0%,
-                    white 50%,
-                    {color_above} 50%,
-                    {color_above} {max_bound_percentage}%,
-                    white {max_bound_percentage}%,
-                    white 100%)
-                """.format(
-                    max_bound_percentage=max_bound_percentage,
-                    color_above=color_above
-                )
-            )
-        else:
-            background = (
-                """
-                    linear-gradient(90deg,
-                    white 0%,
-                    white {min_bound_percentage}%,
-                    {color_below} {min_bound_percentage}%,
-                    {color_below} 50%,
-                    white 50%,
-                    white 100%)
-                """.format(
-                    min_bound_percentage=min_bound_percentage,
-                    color_below=color_below
-                )
-            )
-        style['background'] = background
-        styles.append(style)
-
-    return styles
-
-
-app.layout = html.Div([
-    html.H1(children='sxwOBA | Spray-angle enhanced xwOBA'),
-    html.H2(children="leaderboards"),
-    dash_table.DataTable(
-        id='datatable-interactivity',
-        columns=[
-            {"name": i, "id": i, "deletable": True, "selectable": True} for i in df.columns
-        ],
-        data=df.to_dict('records'),
-        editable=False,
-        filter_action="native",
-        sort_action="native",
-        sort_mode="single",
-        column_selectable="single",
-        row_selectable="multi",
-        row_deletable=False,
-        selected_columns=[],
-        selected_rows=[],
-        page_action="native",
-        page_current= 0,
-        style_data_conditional=(
-            data_bars_diverging(df, 'pulled_barrels') +
-            data_bars_diverging(df, 'sxwOBA')
-        ),
-        style_cell={
-            'width': '100px',
-            'minWidth': '100px',
-            'maxWidth': '100px',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-        },
-        page_size=PAGE_SIZE,
-        
-    ),
-    html.Div(id='datatable-interactivity-container'),
-
-    html.Div([
-        html.Div([
-            html.H2(children="Comparing xwOBA and sxwOBA"),
-            html.H4(children="Select minimum plate appearances"),
-            dcc.Slider(
-                1,
-                600,
-                step=None,
-                value=100,
-                marks={
-                    100: '100 PA',
-                    200: '200 PA',
-                    300: '300 PA',
-                    400: '400 PA',
-                    500: '500 PA'
-                },
-                tooltip={"placement": "bottom", "always_visible": True},
-                id='pa-slider'
-            ),
-            dcc.Graph(
-                id='example-graph',
-                figure=fig
-                ),
-        ])
-    ]),
-
-    html.H2(children='Select a player:'),
-    
-    html.Div([
-        dcc.Dropdown(
-            names,
-            value='nolan arenado',
-            id='dropdown'
-        ),
-
-        html.Div([
-            html.Img(
-                id='player-img',
-                src=arenado_img       
-            )],
-                style = {'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '3vw', 'margin-top': '3vw'}),
-
-        html.Div([
-            dcc.Graph(id='barchart')
-        ], style={'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '3vw', 'margin-top': '3vw'}),
-    ], className='row'),
-
-    html.Div([
-        dcc.Graph(id='player-scatter')
-    ]),
-    html.H4(children='Size and color correspond to the sxwOBA of each batted ball event'),
-    html.Br(),
-#     html.H1(children='field plots'),
-#     html.Div(children=[
-#         dcc.Graph(id='swoba-graph',
-#         style={'display': 'inline-block'},
-#         figure=field_swoba),
-#         dcc.Graph(id='xwoba-graph',
-#         style={'display': 'inline-block'},
-#         figure=field_xwoba)]),
-])
-
-
-## Callbacks
-
-@app.callback(
-    Output('barchart', 'figure'),
-    [Input('datatable-interactivity', 'selected_rows'),
-     Input('dropdown', 'value')]
-)
-def update_data(chosen_rows, batter_dropval):
-    print(chosen_rows, batter_dropval)
-    if len(chosen_rows)==0:
-        df_filtered = df.loc[df['batter_name'] == batter_dropval]
-    else:
-        df_filtered = df.loc[df['batter_name'] == batter_dropval]
-        print(df_filtered)
-
-    barchart = px.bar(data_frame=df_filtered, x='batter_name', y=['wOBA', 'xwOBA', 'sxwOBA'], barmode="group")
-    
- 
-    return barchart 
-
-@app.callback(
-    Output('player-scatter', 'figure'),
-    Input('dropdown', 'value')
-)
-def update_player_scatter(batter_name):
-    url="https://i.imgur.com/oGNYVOR.png"
-    im = Image.open(requests.get(url, stream=True).raw)
-    player_bbe = bbe.loc[bbe['batter_name']==batter_name]
+def update_player_scatter(batter_id, bbe):
+    player_bbe = bbe.loc[bbe['batter']==batter_id]
 
     bbe_scatter = px.scatter(data_frame=player_bbe,
         x='field_x',
         y='field_y',
         color='sxwOBA',
-        size='sxwOBA',
-        size_max=10,
-        opacity=1,
+        opacity=0.9,
         color_continuous_scale='balance',
         hover_data=['launch_speed', 'launch_angle', 'pulled_barrel'],
-        width=1050,
-        height=1000)
+        width=400,
+        height=350)
 
-    bbe_scatter.update_traces(line=dict(dash='dash', width=3, color="white"))
-    
-    bbe_scatter.update_layout(xaxis_range=[-20,380], yaxis_range=[-20,380],
-        xaxis = dict(
-            tickmode='array',
-            tickvals = [0, 90, 300, 330, 360]
-        ),
-        yaxis = dict(
-            tickmode='array',
-            tickvals = [0, 90, 300, 330, 360]
-        )
-    )
-    
     bbe_scatter.add_shape(type="rect",
         x0=-20, y0=-20, x1=380, y1=380,
         line=dict(
@@ -479,47 +181,196 @@ def update_player_scatter(batter_name):
         opacity=1,
         layer="below",
         line_color="#efdcc3")
+    
+    bbe_scatter.update_traces(line=dict(dash='dash', width=3, color="white"),
+        mode='markers',
+        marker=dict(
+            sizemode='area',
+            sizeref=3.*bbe['sxwOBA'].max()/(25.**2),
+            sizemin=4
+        ))
+    
+    bbe_scatter.update_layout(
+        xaxis_range=[-20,380],
+        yaxis_range=[-20,380],
+        xaxis = dict(
+            tickmode='array',
+            tickvals = [0, 90, 300, 330, 360],
+            fixedrange=True
+        ),
+        yaxis = dict(
+            tickmode='array',
+            tickvals = [0, 90, 300, 330, 360],
+            fixedrange=True
+        ),
+        dragmode=False
+    )
+    
     return bbe_scatter
 
+df, bbe = get_data(2023)
+dropdown_options = [{'label': row.Name, 'value': row.id} for row in df.itertuples()]
+
+PAGE_SIZE = 10
+
+# arenado_img = Image.open("player_images/571448.png")
+
+app.layout = html.Div([
+    dcc.Store(id='bbe-store', storage_type='memory', data=bbe.to_dict('records')),
+    html.H1(children='sxwOBA: spray-angle enhanced xwOBA', style={'text-align': 'center'}),
+
+    html.H2(children='Select a year and player:'),
+    
+    html.Div([
+        dcc.Dropdown(
+            value=dropdown_options[0]['value'],
+            options=dropdown_options,
+            id='dropdown',
+            style={'display':'inline-block', 'width': '200px'}
+        ),
+        dcc.Dropdown(
+            id='year-dropdown',
+            options=[{'label': str(year), 'value': year} for year in range(2021, 2024)],
+            value=2023,
+            style={'display':'inline-block', 'width': '100px'}
+        )
+    ]),
+    html.Div([
+        html.Img(
+            id='player-img',
+            src=Image.open('player_images/680552.png'),
+            className='row',
+            style={'display':'inline-block', 'align-items': 'left', 'max-width': '50%'}
+        ),
+        dcc.Graph(id='barchart', className='row', style={'display':'inline-block', 'align-items': 'center', 'max-width': '50%'}),
+        dcc.Graph(id='player-scatter', className='row', style={'display':'inline-block', 'align-items': 'right', 'max-width': '50%'})
+    ]),    
+    
+    html.H2(children="leaderboards"),
+    html.H6(children="* pbarrels: pulled barrels"),
+
+
+    html.Div([
+        dcc.Input(id='input_text', type='text', placeholder='Minimum PA'),
+        html.Button('Update', id='update_button'),
+        dash_table.DataTable(
+            id='datatable-interactivity',
+            columns=[
+                {"name": i, "id": i, "deletable": False, "selectable": True} for i in df.columns
+            ],
+            data=df.to_dict('records'),
+            style_data={
+            'whiteSpace': 'normal',
+            'height': '3%',
+            },
+            style_table={
+                'overflowY': 'scroll',
+            },
+            editable=False,
+            sort_action="native",
+            sort_mode="single",
+            column_selectable=False,
+            row_selectable=False,
+            row_deletable=False,
+            selected_rows=[],
+            page_action="native",
+            page_current= 0,
+            page_size=PAGE_SIZE,
+            fill_width=False,
+        )], style={'max-width':'90%'}),
+
+    html.Div([
+        html.Div([
+            html.H2(children="Comparing xwOBA and sxwOBA"),
+            html.H4(children="Select minimum plate appearances"),
+            dcc.Slider(
+                1,
+                df['PA'].max(),
+                value=50,
+                tooltip={"placement": "bottom", "always_visible": True},
+                id='pa-slider',
+            ),
+        ]),
+        html.Div([
+            dcc.Graph(
+                id='comparison-scatter',
+                figure=comparison_scatter(df),
+                ),    
+        ])
+
+    ], style={'display':'inline-block'})
+
+], style={'font-family': 'system-ui','display': 'flex', 'flex-direction': 'column', 'align-items': 'center'})
+
 @app.callback(
-    Output('player-img', 'src'),
-    Input('dropdown', 'value')
+    [Output('barchart', 'figure'),
+     Output('player-scatter', 'figure'),
+     Output('player-img', 'src'),
+     Output('datatable-interactivity', 'data'),
+     Output('comparison-scatter', 'figure'),
+     Output('dropdown', 'options')],
+    [Input('datatable-interactivity', 'selected_rows'),
+     Input('dropdown', 'value'),
+     Input('year-dropdown', 'value'),
+     Input('pa-slider', 'value'),
+     Input('update_button', 'n_clicks')],
+    [State('datatable-interactivity', 'data'),
+     State('input_text', 'value'),
+     State('bbe-store', 'data')]
 )
-def update_player_img(batter_name):
-    from pybaseball import playerid_lookup
-    if batter_name != None:
-        id = playerid_lookup(batter_name.split(' ')[-1], batter_name.split(' ')[0])['key_mlbam']
-        print(id[0], type(id[0]))
-        path = 'player_images/{}.png'.format(id[0])
+def update_outputs(chosen_rows, batter_dropval, year, selected_pa, n_clicks, data, minimum_pa, bbe_data):
+    ctx = callback_context
+    triggered_component = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    data_changed = False
+
+    if triggered_component == 'year-dropdown':
+        global df, bbe
+        df, bbe = get_data(year)
+        data = df.to_dict('records')
+        bbe_data = bbe.to_dict('records')
+        data_changed = True
+
+    if triggered_component == 'update_button' and n_clicks is not None:
+        data = df.loc[df['PA'] >= int(minimum_pa)].to_dict('records')
+        data_changed = True
+
+    if triggered_component == 'pa-slider':
+        data = df.loc[df['PA'] >= selected_pa].to_dict('records')
+        data_changed = True
+
+    # Update player_scatter
+    player_scatter_figure = update_player_scatter(batter_dropval, pd.DataFrame(bbe_data))
+
+    # Update comparison_scatter
+    comparison_scatter_figure = comparison_scatter(pd.DataFrame(data))
+
+    # Update dropdown options
+    dropdown_options = [{'label': d['Name'], 'value': d['id']} for d in data]
+
+
+    if len(chosen_rows) == 0:
+        df_filtered = df.loc[df['id'] == batter_dropval]
+    else:
+        df_filtered = df.loc[df['id'] == batter_dropval]
+
+    # Update barchart
+    barchart_figure = px.bar(data_frame=df_filtered, x='Name', y=['wOBA', 'xwOBA', 'sxwOBA'], text_auto='.3f', height=400, width=600, barmode='group')
+    barchart_figure.update_layout(yaxis_range=[0,0.5])
+    barchart_figure.update_xaxes(title='')
+    barchart_figure.update_yaxes(title='')
+
+    # Update player_img 
+    
+    if batter_dropval is not None:
+        id = batter_dropval
+        path = 'player_images/{}.png'.format(id)
         im = Image.open(path)
-        
-        return im
+        player_img_src = im
+    else:
+        player_img_src = no_update
 
-
-@app.callback(
-    Output('datatable-interactivity', 'style_data_conditional'),
-    Input('datatable-interactivity', 'selected_columns')
-)
-
-def update_styles(selected_columns):
-    return [{
-        'if': { 'column_id': i },
-        'background_color': '#D2F3FF'
-    } for i in selected_columns]
-
-@app.callback(
-    Output('example-graph', 'figure'),
-    Input('pa-slider', 'value'))
-
-def update_table(selected_pa):
-    filtered_df = df[df.PA >= selected_pa]
-
-    fig = px.scatter(filtered_df, x="xwOBA", y="sxwOBA", color="diff",
-        color_continuous_scale="balance", trendline="ols",
-        hover_data=["batter_name", "PA", "diff %"],
-        width=1050, height=1000)
-
-    return fig
+    return barchart_figure, player_scatter_figure, player_img_src, data, comparison_scatter_figure, dropdown_options
 
 if __name__ == '__main__':
     app.run_server(debug=True, host = '127.0.0.1', dev_tools_hot_reload=False)
