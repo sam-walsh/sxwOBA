@@ -55,46 +55,6 @@ def create_target_variable(df, events=['intentional_walk', 'walk', 'hit_by_pitch
             df.loc[df['events'] == event, 'target'] = i
     return df
 
-
-# def get_season_data():
-#     """
-#     A script that queries 2022 statcast data week-by-week from opening day up to current date to handle api limits.
-#     """
-
-#     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
-#     ## https://github.com/jldbc/pybaseball for more info
-
-#     ## Divides query length into n queries of week length to handle api limits
-#     if len(os.listdir('statcast_data')) == 0:
-#         print("no statcast file found, querying 2022 data via pybaseball")
-
-#         weeks = []
-#         start = dt.date(2022, 4, 7)
-#         days = (today-start).days
-#         num_weeks = (days // 7) + 2
-#         counter = 0
-#         for d in range(days):
-#             if d%7 == 0:
-#                 end = start + dt.timedelta(days=7)
-#                 week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-#                 weeks.append(week)
-#                 counter+=1
-#                 print("week {}/{} complete".format(counter, num_weeks))
-#                 start = end
-                
-#             elif (d+1) == days:
-#                 end = start + dt.timedelta(days=(d%7))
-#                 week = pb.statcast(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-#                 counter+=1
-#                 print("week {}/{} complete".format(counter, num_weeks))
-#             df = pd.concat(weeks)
-#             df.to_csv("statcast_data/{}.csv".format(today)) ## Saves statcast play-by-play data to .csv
-#         return df
-#     else:
-#         df = pd.read_csv('statcast_data/2022-10-18.csv')
-#         print("loading in saved statcast file")
-#         return df
-
 def get_fg_stats(year, selected_stats=selected_stats):
     out = pb.fg_batting_data(year, qual=0)
     out = out.drop(columns=['xwOBA'])
@@ -117,37 +77,10 @@ def prepare_training_data(year):
         start_dt, end_dt = start_end_dates.loc[start_end_dates['year'] == year, ['start_dt', 'end_dt']].values[0]
         df = get_season_data(start_dt, end_dt)
 
-    # if year == 2023:
-    #     start_dt, end_dt = start_end_dates.loc[start_end_dates['year'] == 2022, ['start_date', 'end_date']].values[0]
-    #     df_2022 = get_season_data(start_dt, end_dt)
-    #     df = pd.concat([df, df_2022], axis=0)
-
     sprint_speed = pd.read_csv("sprint_speed.csv")
     sprint_speed = sprint_speed[['player_id', 'sprint_speed']]
     df = pd.merge(df, sprint_speed, left_on='batter', right_on='player_id')
     return df
-
-
-    # # Get the current date and time
-    # now = datetime.now()
-
-    # # Format the date and time
-    # formatted_now = now.strftime("%Y-%m-%d")
-
-    # # Read current data
-    # df = pd.read_csv("statcast_data/2022.csv")
-    # df['game_date'] = pd.to_datetime(df['game_date'])
-    # # if df['game_date'].max().year > 2022:
-    # #     start = str(df['game_date'].max()).split(' ')[0]
-    # # else:
-    # #     start = '2023-03-30'
-    # # recent = pb.statcast(start_dt=start, end_dt=formatted_now)
-
-    # # df = pd.concat([df, recent], axis = 0)
-    # sprint_speed = pd.read_csv("sprint_speed.csv")
-    # sprint_speed = sprint_speed[['player_id', 'sprint_speed']]
-    # df = pd.merge(df, sprint_speed, left_on='batter', right_on='player_id')
-    # return df
 
 def preprocess_data(df):
     df = df.drop_duplicates()

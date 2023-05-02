@@ -213,8 +213,6 @@ dropdown_options = [{'label': row.Name, 'value': row.id} for row in df.itertuple
 
 PAGE_SIZE = 10
 
-# arenado_img = Image.open("player_images/571448.png")
-
 app.layout = html.Div([
     dcc.Store(id='bbe-store', storage_type='memory', data=bbe.to_dict('records')),
     html.H1(children='sxwOBA: spray-angle enhanced xwOBA', style={'text-align': 'center'}),
