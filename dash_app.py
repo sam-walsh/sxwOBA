@@ -1,17 +1,3 @@
-# Run this app with `python app.py` and
-# visit http://127.0.0.1:8050/ in your web browser.
-
-## TODO 
-## -[] DOCUMENT CODE
-## -[X] get PA slider working
-## -[X] fix PA totals
-## -[X] add player picture functionality from dropdown
-## -[X] add player-specific plots
-## -[] update font and theme
-## -[X] fix player pictures
-## -[X] add more player-specific plots
-## -[] add pulled barrels and % to leaderboard
-
 import plotly.express as px
 import pandas as pd
 import numpy as np
