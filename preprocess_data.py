@@ -44,7 +44,14 @@ def get_mlbam_id(row):
             else:
                 return 000000
 
-def get_fg_stats(year, selected_stats=selected_stats):
+def get_fg_stats(year, selected_stats=[
+    'Name', 'G', 'AB', 'PA', 'H', '2B', '3B', 'HR', 'R',
+    'RBI', 'SB', 'CS', 'BB%', 'K%', 'OBP', 'SLG', 'wOBA',
+    'xwOBA', 'xBA', 'xSLG', 'Barrels', 'EV', 'LA', 'WAR',
+    'key_mlbam'
+]
+):
+    import pybaseball as pb
     """
     returns fangraphs batting stats for a given year
     """
@@ -60,6 +67,8 @@ def get_sprint_speed(df, year):
     """
     acquires sprint speed data for a given year and merges it with the statcast data
     """
+    import pybaseball as pb
+    import pandas as pd
     sprint_speed = pb.statcast_sprint_speed(year, min_opp=1)
     sprint_speed = sprint_speed[['player_id', 'sprint_speed']]
     df = pd.merge(df, sprint_speed, left_on='batter', right_on='player_id', how='left')
@@ -67,11 +76,23 @@ def get_sprint_speed(df, year):
     df.drop(columns=['player_id'], inplace=True)
     return df
 
+def impute_missing_hrs(df):
+    """
+    Checks for homeruns that are missing hit coordinates and imputes the missing spray direction based on the play description.
+    """
+
+
 def preprocess_data(df):
     """
     Preprocesses the statcast data
     """
+    import pandas as pd
+    from sklearn.preprocessing import OrdinalEncoder
+    import math
+    import numpy as np
+    import pybaseball as pb
 
+    
     df = df.drop_duplicates()
     df['batter'] = df.batter.astype(int)
 
