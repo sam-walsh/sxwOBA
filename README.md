@@ -2,7 +2,7 @@
 ---
 
 #### What is sxwOBA?
-At its core sxwOBA is simply a variation of the popular metric xwOBA. Using three inputs--launch angle, exit velocity, and spray angle--
+At its core sxwOBA is simply a variation of the popular metric xwOBA. Using three inputs--launch angle, exit velocity, and spray angle.
 
 #### What is wOBA?
 ---
