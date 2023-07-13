@@ -1,14 +1,16 @@
-from imports import *
-from config import *
+import pandas as pd
+import glob
+import psycopg2
 from data_retrieval import get_season_data, get_fg_stats
 from preprocess_data import preprocess_data, create_target_variable, get_sprint_speed
 from train_models import train_model
 from results_processing import calculate_expected_xwoba, postprocess_data
-from database_operations import connect_to_db, create_tables, insert_data_into_tables, close_connection
+from update_db import connect_to_db, create_tables, insert_data_into_tables, close_connection
+
 
 def main():
     years_to_query = [2021, 2022, 2023]
-    start_end = pd.read_csv("start_end_dates.csv")
+    start_end = pd.read_csv("other_data/start_end_dates.csv")
     print(start_end.info())
 
     for year in years_to_query:

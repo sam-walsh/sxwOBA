@@ -1,4 +1,8 @@
 def get_season_data(year):
+    import pybaseball as pb
+    import os
+    import pandas as pd
+    from datetime import datetime
     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
     ## https://github.com/jldbc/pybaseball for more info
 
@@ -34,13 +38,15 @@ def get_season_data(year):
     df.to_csv("statcast_data/{}.csv".format(year)) ## Saves statcast play-by-play data to .csv
     return df
 
-    else:
-        start_dt, end_dt = start_end_dates.loc[start_end_dates['year'] == year, ['start_dt', 'end_dt']].values[0]
-        df = pb.statcast(start_dt, end_dt)
-    df.to_csv("statcast_data/{}.csv".format(year), index_label='index') ## Saves statcast play-by-play data to .csv
-    return df
-
-def get_fg_stats(year, selected_stats):
+def get_fg_stats(year, selected_stats=[
+    'Name', 'G', 'AB', 'PA', 'H', '2B', '3B', 'HR', 'R',
+    'RBI', 'SB', 'CS', 'BB%', 'K%', 'OBP', 'SLG', 'wOBA',
+    'xwOBA', 'xBA', 'xSLG', 'Barrels', 'EV', 'LA', 'WAR',
+    'key_mlbam'
+]
+):
+    import pybaseball as pb
+    import pandas as pd
     out = pb.fg_batting_data(year, qual=1)
     id_table = pb.playerid_reverse_lookup(out['IDfg'].tolist(), key_type='fangraphs')
     id_table.to_csv(f"id_table_{year}.csv")

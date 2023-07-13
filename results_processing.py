@@ -1,4 +1,7 @@
 def postprocess_data(df, leaders, bbe, year):
+    import pandas as pd
+    import numpy
+    from data_retrieval import get_fg_stats
     df['pulled_barrel'] = 0
     df.loc[bbe.index, 'pulled_barrel'] = bbe['pulled_barrel']
     pulled_barrels = df.groupby('batter')['pulled_barrel'].sum().reset_index()
@@ -29,6 +32,8 @@ def postprocess_data(df, leaders, bbe, year):
     return df, leaders, bbe
 
 def calculate_expected_xwoba(df, bbe, year):
+    import pandas
+    import numpy
     df.loc[bbe.index, 'rf_xwoba'] = bbe['rf_xwoba']
     df.loc[bbe.index, 'sxwOBA'] = bbe['sxwOBA']
     df.loc[bbe.index, 'sxwoba_prob_model'] = bbe['sxwoba_prob_model']

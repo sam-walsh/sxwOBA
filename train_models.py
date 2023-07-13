@@ -1,5 +1,11 @@
 def train_model(year, bbe):
-     
+    import pandas as pd
+    import numpy as np
+    import xgboost as xgb
+    import joblib
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import cross_val_score
+
     X = bbe[['launch_speed', 'launch_angle', 'stand_L', 'sprint_speed']]
     y = bbe['woba_value'].to_numpy()
     
