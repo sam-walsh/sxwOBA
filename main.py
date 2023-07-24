@@ -1,6 +1,6 @@
 import pandas as pd
 import glob
-import psycopg2
+import os
 from data_retrieval import get_season_data, get_fg_stats
 from preprocess_data import preprocess_data, create_target_variable, get_sprint_speed
 from train_models import train_model
@@ -10,8 +10,7 @@ from update_db import connect_to_db, create_tables, insert_data_into_tables, clo
 
 def main():
     years_to_query = [2021, 2022, 2023]
-    start_end = pd.read_csv("other_data/start_end_dates.csv")
-    print(start_end.info())
+    start_end = pd.read_csv(os.path.join("other_data", "start_end_dates.csv"))
 
     for year in years_to_query:
         season_df = get_season_data(year)
@@ -19,7 +18,7 @@ def main():
         season_df = create_target_variable(season_df)
         df, bbe = preprocess_data(season_df)
         bbe = train_model(year, bbe)
-        leaders, sxwoba_leaders = calculate_expected_xwoba(df, bbe, year)
+        leaders = calculate_expected_xwoba(df, bbe, year)
         df, leaders, bbe = postprocess_data(df, leaders, bbe, year)
 
         # Save data to csv

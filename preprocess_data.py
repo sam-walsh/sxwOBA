@@ -1,5 +1,6 @@
 def create_target_variable(df, events=['intentional_walk', 'walk', 'hit_by_pitch', 'single', 'double', 'triple', 'home_run', 'strikeout', 'field_error', 'other_out']):
     df['target'] = -1
+    df['des'] = df['des'].fillna('')
     for i, event in enumerate(events):
         if event == 'intentional_walk':
             df.loc[df['des'].str.contains('intentional'), 'target'] = i
@@ -76,11 +77,21 @@ def get_sprint_speed(df, year):
     df.drop(columns=['player_id'], inplace=True)
     return df
 
-def impute_missing_hrs(df):
+def impute_hit_direction_from_des(row):
     """
-    Checks for homeruns that are missing hit coordinates and imputes the missing spray direction based on the play description.
+    Infer hit direction from the 'des' column.
     """
+    import numpy as np
+    import pandas as pd
 
+    if 'left' in row['des']:
+        return 'left'
+    elif 'right' in row['des']:
+        return 'right'
+    elif 'center' in row['des']:
+        return 'center'
+    else:
+        return np.nan
 
 def preprocess_data(df):
     """
@@ -125,15 +136,17 @@ def preprocess_data(df):
 
     # Subset for batted ball events with non-null variables of interest
     bbe = df.loc[(df['description'] == 'hit_into_play') & (df['estimated_woba_using_speedangle'].notna())]
-    bbe = bbe.dropna(subset=['launch_speed', 'launch_angle', 'hc_x', 'hc_y'])
+    bbe = bbe.copy()
+
 
     # Rotate hit coordinates over 1st quadrant of xy-plane for ease in calculating spray angle
-    bbe['hc_x_adj'] = bbe['hc_x'].sub(126)
-    bbe['hc_y_adj'] = 204.5 - bbe['hc_y']
+    bbe.loc[:, 'hc_x_adj'] = bbe['hc_x'].sub(126)
+    bbe.loc[:, 'hc_y_adj'] = 204.5 - bbe['hc_y']
     rad = -math.pi/4
     rotation_mat = np.array([[math.cos(rad), math.sin(rad)],
                             [-math.sin(rad), math.cos(rad)]])
     
+    bbe = bbe.dropna(subset=['hc_x', 'hc_y'])
     bbe[['field_x', 'field_y']] = bbe[['hc_x_adj', 'hc_y_adj']].dot(rotation_mat).astype(np.float64)
 
     # Calculate spray angle (theta_deg) from inverse tangent function of transformed hit coordinates
@@ -147,6 +160,10 @@ def preprocess_data(df):
     bins = pd.IntervalIndex.from_tuples([(bbe['theta_deg'].min(), 30), (30, 60), (60, bbe['theta_deg'].max())])
     bbe['hit_direction'] = pd.cut(bbe['theta_deg'], bins=bins).map(dict(zip(bins, labels)))
 
+    # Impute missing hit_direction values based on the 'des' column
+    missing_hit_direction_mask = bbe['hit_direction'].isnull()
+    bbe.loc[missing_hit_direction_mask, 'hit_direction'] = bbe.loc[missing_hit_direction_mask].apply(impute_hit_direction_from_des, axis=1)
+
     bbe['pull'] = bbe.apply(lambda row: (row['stand'] == 'R' and row['hit_direction'] == 'left') or (row['stand'] == 'L' and row['hit_direction'] == 'right'), axis=1).astype(int)
     bbe['oppo'] = bbe.apply(lambda row: (row['stand'] == 'R' and row['hit_direction'] == 'right') or (row['stand'] == 'L' and row['hit_direction'] == 'left'), axis=1).astype(int)
 
@@ -154,6 +171,6 @@ def preprocess_data(df):
     bbe['pulled_barrel'] = bbe.apply(lambda row: row['pull'] == 1 and row['launch_speed_angle'] == 6, axis=1).astype(int)
 
     # Create training dataframe for spray angle model
-    bbe = bbe.dropna(subset=['launch_speed', 'launch_angle', 'woba_value'])
+    bbe = bbe.dropna(subset=['launch_speed', 'launch_angle', 'hit_direction', 'woba_value'])
     
     return df, bbe

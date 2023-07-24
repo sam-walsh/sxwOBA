@@ -21,6 +21,13 @@ def create_tables(cur):
     Creates the necessary tables if they do not exist
     """
 
+    # Drop the 'spray_xwoba' table if it exists
+    cur.execute("DROP TABLE IF EXISTS spray_xwoba")
+
+    # Drop the 'bbe' table if it exists
+    cur.execute("DROP TABLE IF EXISTS bbe")
+
+
     # Execute a query to get a list of tables in the database
     cur.execute("""
         SELECT table_name
@@ -42,6 +49,7 @@ def create_tables(cur):
             "wOBA" REAL,
             "xwOBA" REAL,
             "sxwOBA" REAL,
+            "sxwOBA_adj" REAL,
             "diff" REAL,
             "diff%" REAL,
             "BB%" REAL,
@@ -56,7 +64,7 @@ def create_tables(cur):
 
         cur.execute(create_spray_xwoba_table_query)
 
-        # Create the 'bbe' table
+    # Create the 'bbe' table
     create_bbe_table_query = '''
     CREATE TABLE "bbe" (
         "pitch_type" TEXT,
@@ -171,25 +179,34 @@ def create_tables(cur):
         "rf_xwoba" REAL,
         "sxwOBA" REAL,
         "sxwoba_probs" TEXT,
-        "sxwoba_prob_model" REAL
-        )
-        '''
+        "sxwoba_prob_model" REAL,
+        "gidp_prob" REAL
+    )
+    '''
 
     cur.execute(create_bbe_table_query)
 
 def insert_data_into_tables(conn, cur, spray_xwoba_paths, bbe_paths):
     # Insert data into the 'spray_xwoba' table
     for csv_file_path in spray_xwoba_paths:
-        with open(csv_file_path, 'r') as f:
-            next(f) # Skip the header row
-            cur.copy_expert("COPY spray_xwoba FROM STDIN WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',')", f)
+        for year in ['2021', '2022', '2023']:
+            if year in csv_file_path:
+                with open(csv_file_path, 'r') as f:
+                    next(f) # Skip the header row
+                    cur.copy_expert("COPY spray_xwoba FROM STDIN WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',')", f)
+            else:
+                continue
     conn.commit()
 
     # Insert data into the 'bbe' table
     for csv_file_path in bbe_paths:
-        with open(csv_file_path, 'r') as f:
-            next(f) # Skip the header row
-            cur.copy_expert("COPY bbe FROM STDIN WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',')", f)
+        for year in ['2021', '2022', '2023']:
+            if  year in csv_file_path:  
+                with open(csv_file_path, 'r') as f:
+                        next(f) # Skip the header row
+                        cur.copy_expert("COPY bbe FROM STDIN WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',')", f)
+            else:
+                continue
     conn.commit()
 
 def close_connection(cur, conn):

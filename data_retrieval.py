@@ -6,7 +6,7 @@ def get_season_data(year):
     ## Searches for previously queried statcast data, if not found data is queried via pybaseball
     ## https://github.com/jldbc/pybaseball for more info
 
-    start_end_dates = pd.read_csv('start_end_dates.csv')
+    start_end_dates = pd.read_csv(os.path.join('other_data', 'start_end_dates.csv'))
 
     csv_filename = f"statcast_data/{year}.csv"
 
@@ -49,7 +49,6 @@ def get_fg_stats(year, selected_stats=[
     import pandas as pd
     out = pb.fg_batting_data(year, qual=1)
     id_table = pb.playerid_reverse_lookup(out['IDfg'].tolist(), key_type='fangraphs')
-    id_table.to_csv(f"id_table_{year}.csv")
     out = pd.merge(out, id_table, left_on='IDfg', right_on='key_fangraphs')
 
     return out[selected_stats]
