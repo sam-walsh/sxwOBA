@@ -3,6 +3,7 @@ test.csv
 \statcast_data
 \leaders
 \models
+*.csv
 *.pyc
 .DS_Store
 .env
