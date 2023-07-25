@@ -34,7 +34,7 @@ def calculate_expected_xwoba(df, bbe, year):
     import numpy
     import joblib
 
-    gidp_prob_model = joblib.load('models/gidp_logistic_model.joblib')
+    gidp_prob_model = joblib.load('models/gidp_prob_model.joblib')
     gidp_features = bbe['launch_angle'].values.reshape(-1, 1)
     gidp_prob = gidp_prob_model.predict_proba(gidp_features)[:, 1]
     bbe['gidp_prob'] = gidp_prob
@@ -56,7 +56,7 @@ def calculate_expected_xwoba(df, bbe, year):
     woba_events.loc[:, 'xwOBA_adj'] = woba_events['estimated_woba_using_speedangle'].sub(woba_events['gidp_adj'])
     print(woba_events['sxwOBA_adj'].describe())
     if year in [2021, 2022, 2023]:
-        woba_events.to_csv(f'other_woba_events_{year}.csv')
+        woba_events.to_csv(f'woba_events_{year}.csv')
     leaders = woba_events.groupby('batter')[['rf_xwoba', 'sxwOBA', 'sxwOBA_adj']].mean().reset_index()
 
     # sxwoba_leaders = woba_events.groupby('batter')['sxwoba_prob_model'].agg(['mean', 'count'])
