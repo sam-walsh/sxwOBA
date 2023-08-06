@@ -34,8 +34,8 @@ def calculate_expected_xwoba(df, bbe, year):
     import numpy
     import joblib
 
-    gidp_prob_model = joblib.load('models/gidp_prob_model.joblib')
-    gidp_features = bbe['launch_angle'].values.reshape(-1, 1)
+    gidp_prob_model = joblib.load('models/gidp_xgb_model.joblib')
+    gidp_features = bbe[['launch_speed', 'launch_angle']]
     gidp_prob = gidp_prob_model.predict_proba(gidp_features)[:, 1]
     bbe['gidp_prob'] = gidp_prob
 
@@ -48,12 +48,12 @@ def calculate_expected_xwoba(df, bbe, year):
     df[['rf_xwoba', 'sxwOBA', 'estimated_woba_using_speedangle']] = df[['rf_xwoba', 'sxwOBA', 'estimated_woba_using_speedangle']].mask(df['target'] == 7, 0) # wOBA for strikeouts
 
     woba_events = df.loc[df['target']!=-1]
-    xwoba_mean = woba_events['estimated_woba_using_speedangle'].mean()
-    print(xwoba_mean)
-    woba_events.loc[:, 'gidp_adj'] = woba_events['gidp_prob'].mul(xwoba_mean).fillna(0)
 
-    woba_events.loc[:, 'sxwOBA_adj'] = woba_events['sxwOBA'].sub(woba_events['gidp_adj'])
-    woba_events.loc[:, 'xwOBA_adj'] = woba_events['estimated_woba_using_speedangle'].sub(woba_events['gidp_adj'])
+    wGIDP = -0.65
+    woba_events.loc[:, 'gidp_adj'] = woba_events['gidp_prob'].mul(wGIDP).fillna(0)
+
+    woba_events.loc[:, 'sxwOBA_adj'] = woba_events['sxwOBA'].add(woba_events['gidp_adj'])
+    woba_events.loc[:, 'xwOBA_adj'] = woba_events['estimated_woba_using_speedangle'].add(woba_events['gidp_adj'])
     print(woba_events['sxwOBA_adj'].describe())
     if year in [2021, 2022, 2023]:
         woba_events.to_csv(f'statcast_data/woba_events_{year}.csv')
